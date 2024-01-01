@@ -12,7 +12,7 @@ from pero_ocr.document_ocr.layout import PageLayout, TextLine
 from ultralytics import YOLO
 
 from textbite.geometry import AABB, polygon_to_bbox, bbox_intersection_over_area, bbox_intersection
-from textbite.models.improve_pagexml import PageXMLEnhancer, UnsupportedLayoutError
+from textbite.improve_pagexml import PageXMLEnhancer, UnsupportedLayoutError
 
 
 @dataclass

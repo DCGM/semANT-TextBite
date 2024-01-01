@@ -28,13 +28,11 @@ dependencies = [
     "ultralytics",
 ]
 
-
 [tool.setuptools]
 include-package-data = false
 
 [tool.setuptools.package-dir]
 "textbite" = "textbite"
-"textbite.user_scripts" = "user_scripts"
 
 [project.scripts]
 textbite = "textbite.user_scripts.infer:main"
