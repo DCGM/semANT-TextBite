@@ -2,7 +2,7 @@ import numpy as np
 import lxml.etree as ET
 from collections import defaultdict
 
-from textbite.geometry import polygon_to_bbox
+from textbite.geometry import polygon_centroid, get_lines_polygon
 from pero_ocr.document_ocr.layout import RegionLayout
 
 
@@ -130,36 +130,3 @@ class PageXMLEnhancer:
             for region in layout.regions:
                 for line in region.lines:
                     line.id = f'{region.id}_{line.id}'
-
-
-# https://stackoverflow.com/a/66801704/9703830
-def polygon_area(xs, ys):
-    """https://en.wikipedia.org/wiki/Centroid#Of_a_polygon"""
-    # https://stackoverflow.com/a/30408825/7128154
-    return 0.5 * (np.dot(xs, np.roll(ys, 1)) - np.dot(ys, np.roll(xs, 1)))
-
-
-def polygon_centroid(xs, ys):
-    """https://en.wikipedia.org/wiki/Centroid#Of_a_polygon"""
-    xy = np.array([xs, ys])
-    c = np.dot(xy + np.roll(xy, 1, axis=1),
-               xs * np.roll(ys, 1) - np.roll(xs, 1) * ys
-               ) / (6 * polygon_area(xs, ys))
-    return c
-
-
-def get_lines_polygon(lines):
-    bboxes = [polygon_to_bbox(line.polygon) for line in lines]
-    min_x = min(bboxes, key=lambda x: x.xmin).xmin
-    min_y = min(bboxes, key=lambda x: x.ymin).ymin
-    max_x = max(bboxes, key=lambda x: x.xmax).xmax
-    max_y = max(bboxes, key=lambda x: x.ymax).ymax
-
-    polygon = np.array([
-        [min_x, min_y],
-        [max_x, min_y],
-        [max_x, max_y],
-        [min_x, max_y],
-    ])
-
-    return polygon
