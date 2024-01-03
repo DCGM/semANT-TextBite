@@ -65,7 +65,7 @@ class PageXMLEnhancer:
                     polygon = get_lines_polygon(bite_lines)
                     new_region = RegionLayout(f'{region.id}_{bite}', polygon)
                     new_region.lines = bite_lines
-                    new_regions.append(region)
+                    new_regions.append(new_region)
 
         layout.regions = new_regions
 
