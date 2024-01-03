@@ -64,7 +64,6 @@ def polygon_centroid(xs: Tuple[np.int64], ys: Tuple[np.int64]) -> np.ndarray:
     
     return c
 
-
 def get_lines_polygon(lines: List[TextLine]) -> np.ndarray:
     bboxes = [polygon_to_bbox(line.polygon) for line in lines]
     min_x = min(bboxes, key=lambda x: x.xmin).xmin
