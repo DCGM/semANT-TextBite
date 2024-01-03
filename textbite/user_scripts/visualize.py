@@ -70,10 +70,11 @@ def draw_polygon(img, polygon, color, alpha):
 
 def draw_reading_order(img: MatLike, reading_order, centers: dict) -> MatLike:
     color = (255, 0, 0)
-    for src, tgt in pairwise(reading_order):
-        from_point = centers[src]
-        to_point = centers[tgt]
-        cv2.arrowedLine(img, from_point, to_point, color=color, thickness=10)
+    for ordered_group in reading_order:
+        for src, tgt in pairwise(ordered_group):
+            from_point = centers[src]
+            to_point = centers[tgt]
+            cv2.arrowedLine(img, from_point, to_point, color=color, thickness=10, tipLength=0.05)
 
     return img
 
@@ -92,12 +93,24 @@ def draw_layout(img: MatLike, root) -> MatLike:
         region_polygon = array_from_elem(region, namespace)
         region_centers[region.get("id")] = [int(item) for item in polygon_centroid(region_polygon[:, 0], region_polygon[:, 1])]
 
+        cv2.drawContours(img, [region_polygon], -1, color=color, thickness=10)
+
         for line in region.iter(f"{{{ns_name}}}TextLine"):
             line_polygon = array_from_elem(line, namespace)
             overlay = draw_polygon(overlay, line_polygon, color=color, alpha=ALPHA)
 
     reading_order_elem = root.find(".//ns:ReadingOrder", namespace)
-    reading_order = [elem.get("regionRef") for elem in reading_order_elem.iter(f"{{{ns_name}}}RegionRefIndexed")]
+    if len(reading_order_elem) > 1:
+        logging.warning("Reading order has multiple groups, taking the first one.")
+
+    reading_order = []
+    for group in reading_order_elem.iter(f"{{{ns_name}}}OrderedGroup"):
+        if len(group) < 2:
+            continue
+
+        group_reading_order = [elem.get("regionRef") for elem in group.iter(f"{{{ns_name}}}RegionRefIndexed")]
+        reading_order.append(group_reading_order)
+    
     draw_reading_order(img, reading_order, region_centers)
 
     return cv2.addWeighted(img, 1, overlay, 1-ALPHA, 0)
