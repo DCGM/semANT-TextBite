@@ -73,7 +73,7 @@ def draw_reading_order(img: MatLike, reading_order, centers: dict) -> MatLike:
     for src, tgt in pairwise(reading_order):
         from_point = centers[src]
         to_point = centers[tgt]
-        cv2.arrowedLinegit(img, from_point, to_point, color=color, thickness=10)
+        cv2.arrowedLine(img, from_point, to_point, color=color, thickness=10)
 
     return img
 
