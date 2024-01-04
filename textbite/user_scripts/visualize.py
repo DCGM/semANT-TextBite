@@ -99,24 +99,34 @@ def load_reading_order(root, namespace, ns_name):
     return reading_order
 
 
+def load_regions(root, namespace, ns_name):
+    region_centers = {}
+    region_polygons = {}
+    region_text_lines = {}
+    for region_idx, region in enumerate(root.iter(f"{{{ns_name}}}TextRegion")):
+        polygon = array_from_elem(region, namespace)
+        region_centers[region.get("id")] = [int(item) for item in polygon_centroid(polygon[:, 0], polygon[:, 1])]
+        region_polygons[region.get("id")] = polygon
+        region_text_lines[region.get("id")] = list(region.iter(f"{{{ns_name}}}TextLine"))
+
+    return region_polygons, region_centers, region_text_lines
+
+
 def draw_layout(img: MatLike, root, draw_overlay) -> MatLike:
     overlay = np.zeros_like(img)
 
     ns_name = root.nsmap[None]
     namespace = {"ns": ns_name}
 
-    region_centers = {}
+    region_polygons, region_centers, region_text_lines = load_regions(root, namespace, ns_name)
 
-    for region_idx, region in enumerate(root.iter(f"{{{ns_name}}}TextRegion")):
+    for region_idx, (polygon, text_lines) in enumerate(zip(region_polygons.values(), region_text_lines.values())):
         color = COLORS[region_idx % len(COLORS)]
 
-        region_polygon = array_from_elem(region, namespace)
-        region_centers[region.get("id")] = [int(item) for item in polygon_centroid(region_polygon[:, 0], region_polygon[:, 1])]
-
-        cv2.drawContours(img, [region_polygon], -1, color=color, thickness=10)
+        cv2.drawContours(img, [polygon], -1, color=color, thickness=10)
 
         if draw_overlay:
-            for line in region.iter(f"{{{ns_name}}}TextLine"):
+            for line in text_lines:
                 line_polygon = array_from_elem(line, namespace)
                 overlay = draw_polygon(overlay, line_polygon, color=color, alpha=ALPHA)
 
