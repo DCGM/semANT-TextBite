@@ -69,17 +69,6 @@ def draw_polygon(img, polygon, color, alpha):
     return cv2.addWeighted(img, 1, mask, 1-alpha, 0)
 
 
-def draw_reading_order(img: MatLike, reading_order, centers: dict) -> MatLike:
-    color = (255, 0, 0)
-    for ordered_group in reading_order:
-        for src, tgt in pairwise(ordered_group):
-            from_point = centers[src]
-            to_point = centers[tgt]
-            cv2.arrowedLine(img, from_point, to_point, color=color, thickness=10, tipLength=0.05)
-
-    return img
-
-
 def load_reading_order(root, namespace, ns_name):
     reading_order_elem = root.find(".//ns:ReadingOrder", namespace)
     if reading_order_elem is None:
@@ -90,9 +79,6 @@ def load_reading_order(root, namespace, ns_name):
 
     reading_order = []
     for group in reading_order_elem.iter(f"{{{ns_name}}}OrderedGroup"):
-        if len(group) < 2:
-            continue
-
         group_reading_order = [elem.get("regionRef") for elem in group.iter(f"{{{ns_name}}}RegionRefIndexed")]
         reading_order.append(group_reading_order)
 
@@ -103,7 +89,7 @@ def load_regions(root, namespace, ns_name):
     region_centers = {}
     region_polygons = {}
     region_lines_polygons = {}
-    for region_idx, region in enumerate(root.iter(f"{{{ns_name}}}TextRegion")):
+    for region in root.iter(f"{{{ns_name}}}TextRegion"):
         polygon = array_from_elem(region, namespace)
         region_centers[region.get("id")] = [int(item) for item in polygon_centroid(polygon[:, 0], polygon[:, 1])]
         region_polygons[region.get("id")] = polygon
@@ -120,17 +106,31 @@ def draw_layout(img: MatLike, root, draw_overlay) -> MatLike:
 
     region_polygons, region_centers, region_lines_polygons = load_regions(root, namespace, ns_name)
     reading_order = load_reading_order(root, namespace, ns_name)
+    regions_out_of_order = set(region_polygons.keys()) - set(r for bite in reading_order for r in bite)
 
-    for region_idx, (polygon, lines_polygons) in enumerate(zip(region_polygons.values(), region_lines_polygons.values())):
-        color = COLORS[region_idx % len(COLORS)]
+    for bite_id, bite in enumerate(reading_order):
+        color = COLORS[bite_id % len(COLORS)]
+        for region_id in bite:
+            polygon, lines_polygons = region_polygons[region_id], region_lines_polygons[region_id]
+            cv2.drawContours(img, [polygon], -1, color=color, thickness=10)
 
+            if draw_overlay:
+                for line_polygon in lines_polygons:
+                    overlay = draw_polygon(overlay, line_polygon, color=color, alpha=ALPHA)
+
+        for src, tgt in pairwise(bite):
+            from_point = region_centers[src]
+            to_point = region_centers[tgt]
+            cv2.arrowedLine(img, from_point, to_point, color=color, thickness=10, tipLength=0.05)
+
+    for i, region_id in enumerate(regions_out_of_order):
+        color = COLORS[(len(reading_order) + i) % len(COLORS)]
+        polygon, lines_polygons = region_polygons[region_id], region_lines_polygons[region_id]
         cv2.drawContours(img, [polygon], -1, color=color, thickness=10)
 
         if draw_overlay:
             for line_polygon in lines_polygons:
                 overlay = draw_polygon(overlay, line_polygon, color=color, alpha=ALPHA)
-
-    draw_reading_order(img, reading_order, region_centers)
 
     return cv2.addWeighted(img, 1, overlay, 1-ALPHA, 0)
 
