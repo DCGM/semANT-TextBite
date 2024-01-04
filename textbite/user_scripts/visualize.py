@@ -98,9 +98,30 @@ def load_regions(root, namespace, ns_name):
     return region_polygons, region_centers, region_lines_polygons
 
 
-def draw_layout(img: MatLike, root, draw_overlay) -> MatLike:
-    overlay = np.zeros_like(img)
+class ImageOverdrawer:
+    def __init__(self, img, draw_overlay):
+        self.img = img
+        self.draw_overlay = draw_overlay
+        self.overlay = np.zeros_like(img) if draw_overlay else None
 
+    def draw_region(self, color, polygon, lines_polygons):
+        cv2.drawContours(self.img, [polygon], -1, color=color, thickness=10)
+
+        if self.draw_overlay:
+            for line_polygon in lines_polygons:
+                self.overlay = draw_polygon(self.overlay, line_polygon, color=color, alpha=ALPHA)
+
+    def connect_regions(self, color, from_point, to_point):
+        cv2.arrowedLine(self.img, from_point, to_point, color=color, thickness=10, tipLength=0.05)
+
+    def final_img(self):
+        if self.draw_overlay:
+            return cv2.addWeighted(self.img, 1, self.overlay, 1-ALPHA, 0)
+        else:
+            return self.img
+
+
+def draw_layout(drawer, root) -> MatLike:
     ns_name = root.nsmap[None]
     namespace = {"ns": ns_name}
 
@@ -112,27 +133,17 @@ def draw_layout(img: MatLike, root, draw_overlay) -> MatLike:
         color = COLORS[bite_id % len(COLORS)]
         for region_id in bite:
             polygon, lines_polygons = region_polygons[region_id], region_lines_polygons[region_id]
-            cv2.drawContours(img, [polygon], -1, color=color, thickness=10)
-
-            if draw_overlay:
-                for line_polygon in lines_polygons:
-                    overlay = draw_polygon(overlay, line_polygon, color=color, alpha=ALPHA)
+            drawer.draw_region(color, polygon, lines_polygons)
 
         for src, tgt in pairwise(bite):
-            from_point = region_centers[src]
-            to_point = region_centers[tgt]
-            cv2.arrowedLine(img, from_point, to_point, color=color, thickness=10, tipLength=0.05)
+            drawer.connect_regions(color, region_centers[src], region_centers[tgt])
 
     for i, region_id in enumerate(regions_out_of_order):
         color = COLORS[(len(reading_order) + i) % len(COLORS)]
         polygon, lines_polygons = region_polygons[region_id], region_lines_polygons[region_id]
-        cv2.drawContours(img, [polygon], -1, color=color, thickness=10)
+        drawer.draw_region(color, polygon, lines_polygons)
 
-        if draw_overlay:
-            for line_polygon in lines_polygons:
-                overlay = draw_polygon(overlay, line_polygon, color=color, alpha=ALPHA)
-
-    return cv2.addWeighted(img, 1, overlay, 1-ALPHA, 0)
+    return drawer.final_img()
 
 
 def main():
@@ -155,7 +166,8 @@ def main():
         if img is None:
             logging.warning(f"Image {image_filename} not found, skipping.")
 
-        result = draw_layout(img, root, args.overlay)
+        drawer = ImageOverdrawer(img, args.overlay)
+        result = draw_layout(drawer, root)
 
         res_path = os.path.join(args.images_output, image_filename)
         cv2.imwrite(res_path, result)
