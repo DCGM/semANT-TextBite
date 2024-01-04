@@ -48,6 +48,7 @@ def parse_arguments():
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--overlay", action='store_true', help="Whether to overlay regions by colors")
+    parser.add_argument("--draw-out-of-order", action='store_true', help="Whether to draw regions that are not part of reading order")
     parser.add_argument("--logging-level", default='WARNING', choices=['ERROR', 'WARNING', 'INFO', 'DEBUG'])
     parser.add_argument("--xml-input", required=True, type=str, help="Path to a folder with xml data of transcribed pages.")
     parser.add_argument("--images", required=True, type=str, help="Path to a folder with images data.")
@@ -121,13 +122,12 @@ class ImageOverdrawer:
             return self.img
 
 
-def draw_layout(drawer, root) -> MatLike:
+def draw_layout(drawer, root, draw_out_of_order) -> MatLike:
     ns_name = root.nsmap[None]
     namespace = {"ns": ns_name}
 
     region_polygons, region_centers, region_lines_polygons = load_regions(root, namespace, ns_name)
     reading_order = load_reading_order(root, namespace, ns_name)
-    regions_out_of_order = set(region_polygons.keys()) - set(r for bite in reading_order for r in bite)
 
     for bite_id, bite in enumerate(reading_order):
         color = COLORS[bite_id % len(COLORS)]
@@ -138,10 +138,12 @@ def draw_layout(drawer, root) -> MatLike:
         for src, tgt in pairwise(bite):
             drawer.connect_regions(color, region_centers[src], region_centers[tgt])
 
-    for i, region_id in enumerate(regions_out_of_order):
-        color = COLORS[(len(reading_order) + i) % len(COLORS)]
-        polygon, lines_polygons = region_polygons[region_id], region_lines_polygons[region_id]
-        drawer.draw_region(color, polygon, lines_polygons)
+    if draw_out_of_order:
+        regions_out_of_order = set(region_polygons.keys()) - set(r for bite in reading_order for r in bite)
+        for i, region_id in enumerate(regions_out_of_order):
+            color = COLORS[(len(reading_order) + i) % len(COLORS)]
+            polygon, lines_polygons = region_polygons[region_id], region_lines_polygons[region_id]
+            drawer.draw_region(color, polygon, lines_polygons)
 
     return drawer.final_img()
 
@@ -167,7 +169,7 @@ def main():
             logging.warning(f"Image {image_filename} not found, skipping.")
 
         drawer = ImageOverdrawer(img, args.overlay)
-        result = draw_layout(drawer, root)
+        result = draw_layout(drawer, root, args.draw_out_of_order)
 
         res_path = os.path.join(args.images_output, image_filename)
         cv2.imwrite(res_path, result)
