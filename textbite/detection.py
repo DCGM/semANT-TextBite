@@ -6,13 +6,13 @@ from dataclasses import dataclass, field
 from pero_ocr.document_ocr.layout import PageLayout
 
 from textbite.geometry import AABB, polygon_to_bbox, bbox_intersection_over_area, best_intersecting_bbox, \
-                              is_contained
+                              is_contained, PageGeometry
 
 
 @dataclass
 class Bite:
     cls: str
-    bbox: AABB
+    bbox: Optional[AABB]
     lines: List[str] = field(default_factory=list)
     name: str = ""
 
@@ -121,4 +121,22 @@ class YoloBiter:
         texts = [bite for bite in texts_dict.values() if bite.lines]
         titles = [bite for bite in titles_dict.values() if bite.lines]
 
-        return texts + titles
+        # Join titles with their children bites
+        remaining_titles = []
+        geometry = PageGeometry(texts + titles)
+
+        for bg in geometry.bite_geometries:
+            if bg.bite.cls != "title":
+                continue
+        
+            if bg.child is None:
+                remaining_titles.append(bg.bite)
+                continue
+
+            y_dist = abs(bg.bite.bbox.ymax - bg.child.bite.bbox.ymin)
+            if y_dist > 0.2 * layout.page_size[0]:
+                continue
+
+            bg.child.bite.lines.extend(bg.bite.lines)
+
+        return texts + remaining_titles

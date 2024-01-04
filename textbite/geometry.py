@@ -99,8 +99,8 @@ def get_lines_polygon(lines: List[TextLine]) -> np.ndarray:
 class PageGeometry:
     def __init__(self, bites):
         self.bites = bites
-
         self.bite_geometries = [BiteGeometry(bite) for bite in self.bites]
+
         for bite_geometry in self.bite_geometries:
             bite_geometry.set_parent(self.bite_geometries)
             bite_geometry.set_child(self.bite_geometries)
