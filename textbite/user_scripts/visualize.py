@@ -47,6 +47,7 @@ def parse_arguments():
 
     parser = argparse.ArgumentParser()
 
+    parser.add_argument("--overlay", action='store_true', help="Whether to overlay regions by colors")
     parser.add_argument("--logging-level", default='WARNING', choices=['ERROR', 'WARNING', 'INFO', 'DEBUG'])
     parser.add_argument("--xml-input", required=True, type=str, help="Path to a folder with xml data of transcribed pages.")
     parser.add_argument("--images", required=True, type=str, help="Path to a folder with images data.")
@@ -79,7 +80,26 @@ def draw_reading_order(img: MatLike, reading_order, centers: dict) -> MatLike:
     return img
 
 
-def draw_layout(img: MatLike, root) -> MatLike:
+def load_reading_order(root, namespace, ns_name):
+    reading_order_elem = root.find(".//ns:ReadingOrder", namespace)
+    if reading_order_elem is None:
+        return []
+
+    if len(reading_order_elem) > 1:
+        logging.warning("Reading order has multiple groups, taking the first one.")
+
+    reading_order = []
+    for group in reading_order_elem.iter(f"{{{ns_name}}}OrderedGroup"):
+        if len(group) < 2:
+            continue
+
+        group_reading_order = [elem.get("regionRef") for elem in group.iter(f"{{{ns_name}}}RegionRefIndexed")]
+        reading_order.append(group_reading_order)
+
+    return reading_order
+
+
+def draw_layout(img: MatLike, root, draw_overlay) -> MatLike:
     overlay = np.zeros_like(img)
 
     ns_name = root.nsmap[None]
@@ -95,22 +115,12 @@ def draw_layout(img: MatLike, root) -> MatLike:
 
         cv2.drawContours(img, [region_polygon], -1, color=color, thickness=10)
 
-        for line in region.iter(f"{{{ns_name}}}TextLine"):
-            line_polygon = array_from_elem(line, namespace)
-            overlay = draw_polygon(overlay, line_polygon, color=color, alpha=ALPHA)
+        if draw_overlay:
+            for line in region.iter(f"{{{ns_name}}}TextLine"):
+                line_polygon = array_from_elem(line, namespace)
+                overlay = draw_polygon(overlay, line_polygon, color=color, alpha=ALPHA)
 
-    reading_order_elem = root.find(".//ns:ReadingOrder", namespace)
-    if len(reading_order_elem) > 1:
-        logging.warning("Reading order has multiple groups, taking the first one.")
-
-    reading_order = []
-    for group in reading_order_elem.iter(f"{{{ns_name}}}OrderedGroup"):
-        if len(group) < 2:
-            continue
-
-        group_reading_order = [elem.get("regionRef") for elem in group.iter(f"{{{ns_name}}}RegionRefIndexed")]
-        reading_order.append(group_reading_order)
-    
+    reading_order = load_reading_order(root, namespace, ns_name)
     draw_reading_order(img, reading_order, region_centers)
 
     return cv2.addWeighted(img, 1, overlay, 1-ALPHA, 0)
@@ -136,7 +146,7 @@ def main():
         if img is None:
             logging.warning(f"Image {image_filename} not found, skipping.")
 
-        result = draw_layout(img, root)
+        result = draw_layout(img, root, args.overlay)
 
         res_path = os.path.join(args.images_output, image_filename)
         cv2.imwrite(res_path, result)
