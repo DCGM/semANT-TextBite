@@ -6,6 +6,9 @@ import numpy as np
 from pero_ocr.document_ocr.layout import TextLine
 
 
+Point = namedtuple("Point", "x y")
+
+
 AABB = namedtuple("AABB", "xmin ymin xmax ymax")
 
 
@@ -22,6 +25,11 @@ def bbox_intersection(lhs: AABB, rhs: AABB) -> float:
     dy = min(lhs.ymax, rhs.ymax) - max(lhs.ymin, rhs.ymin)
 
     return dx * dy if dx >= 0.0 and dy >= 0.0 else 0.0
+
+
+def bbox_intersection_x(lhs: AABB, rhs: AABB) -> float:
+    dx = min(lhs.xmax, rhs.xmax) - max(lhs.xmin, rhs.xmin)
+    return max(dx, 0.0)
 
 
 def bbox_intersection_over_area(lhs: AABB, rhs: AABB) -> float:
@@ -47,6 +55,13 @@ def best_intersecting_bbox(target_bbox: AABB, candidate_bboxes: List[AABB]) -> O
 
 def is_contained(lhs: AABB, rhs: AABB, threshold: float=0.9) -> bool:
     return bbox_intersection_over_area(lhs, rhs) >= threshold
+
+
+def bbox_center(bbox: AABB) -> Point:
+    x = (bbox.xmin + ((bbox.xmax - bbox.xmin) / 2))
+    y = (bbox.ymin + ((bbox.ymax - bbox.ymin) / 2))
+    return Point(x, y)
+
 
 # https://stackoverflow.com/a/66801704/9703830
 def polygon_area(xs: Tuple[np.int64], ys: Tuple[np.int64]) -> np.float64:
@@ -79,3 +94,52 @@ def get_lines_polygon(lines: List[TextLine]) -> np.ndarray:
     ])
 
     return polygon
+
+
+class PageGeometry:
+    def __init__(self, bites):
+        self.bites = bites
+        self.bite_geometries = [BiteGeometry(bite) for bite in self.bites]
+
+        for bite_geometry in self.bite_geometries:
+            bite_geometry.set_parent(self.bite_geometries)
+            bite_geometry.set_child(self.bite_geometries)
+
+
+class BiteGeometry:
+    def __init__(self, bite):
+        self.bite = bite
+        self.parent: Optional[BiteGeometry] = None
+        self.child: Optional[BiteGeometry] = None
+
+        self.center = bbox_center(self.bite.bbox)
+
+    def children_iterator(self):
+        ptr = self.child
+        while ptr:
+            yield ptr
+            ptr = ptr.child
+
+    def parent_iterator(self):
+        ptr = self.parent
+        while ptr:
+            yield ptr
+            ptr = ptr.parent
+
+    def set_parent(self, bite_geometries) -> None:
+        # Filter regions below me
+        parent_candidates = [bg for bg in bite_geometries if bg.center.y < self.center.y]
+        # Filter lines that have no horizontal overlap with me
+        parent_candidates = [bg for bg in parent_candidates if bbox_intersection_x(self.bite.bbox, bg.bite.bbox)]
+        if parent_candidates:
+            # Take the candidate, which is closest to me in Y axis <==> The one with the highest Y values
+            self.parent = max(parent_candidates, key=lambda x: x.center.y)
+
+    def set_child(self, bite_geometries) -> None:
+        # Filter lines above me
+        child_candidates = [bg for bg in bite_geometries if bg.center.y > self.center.y]
+        # Filter lines that have no horizontal overlap with me
+        child_candidates = [bg for bg in child_candidates if bbox_intersection_x(self.bite.bbox, bg.bite.bbox)]
+        if child_candidates:
+            # Take the candidate, which is closest to me in Y axis <==> The one with the lowest Y values
+            self.child = min(child_candidates, key=lambda x: x.center.y)

@@ -106,7 +106,7 @@ class PageXMLEnhancer:
                 yx_sorted_regions.extend(sorted(running_y_overlapped, key=lambda r: region_centers[r][0]))
                 running_y_overlapped = [r]
 
-        yx_sorted_regions.extend(sorted(running_y_overlapped, key=lambda r: region_centers[r]))
+        yx_sorted_regions.extend(sorted(running_y_overlapped, key=lambda r: region_centers[r][0]))
 
         bite_reading_order = [r for r in yx_sorted_regions]
 
