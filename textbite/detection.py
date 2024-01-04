@@ -129,14 +129,18 @@ class YoloBiter:
             if bg.bite.cls != "title":
                 continue
         
-            if bg.child is None:
+            if bg.child:
+                y_dist = abs(bg.bite.bbox.ymax - bg.child.bite.bbox.ymin)
+
+            found_text_successor = False
+            for successor in bg.children_iterator():
+                if successor.bite.cls == "text" and y_dist < 0.1 * layout.page_size[0]:
+                    found_text_successor = True
+                    successor.bite.lines.extend(bg.bite.lines)
+                    break
+
+            if not found_text_successor:
                 remaining_titles.append(bg.bite)
                 continue
-
-            y_dist = abs(bg.bite.bbox.ymax - bg.child.bite.bbox.ymin)
-            if y_dist > 0.2 * layout.page_size[0]:
-                continue
-
-            bg.child.bite.lines.extend(bg.bite.lines)
 
         return texts + remaining_titles
