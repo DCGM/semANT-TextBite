@@ -1,7 +1,7 @@
-from typing import List, Tuple, Optional
-from dataclasses import dataclass, field
+from typing import List, Tuple, Optional, Any
 import xml.etree.ElementTree as ET
 from ultralytics import YOLO
+from dataclasses import dataclass, field
 
 from pero_ocr.document_ocr.layout import PageLayout
 
@@ -12,6 +12,7 @@ from textbite.geometry import AABB, polygon_to_bbox, bbox_intersection_over_area
 @dataclass
 class Bite:
     cls: str
+    bbox: AABB
     lines: List[str] = field(default_factory=list)
     name: str = ""
 
@@ -79,8 +80,8 @@ class YoloBiter:
             alto_text_lines = alto_root.findall(".//ns:TextLine", namespace)
             alto_text_lines_bboxes = [self.get_alto_bbox(atl) for atl in alto_text_lines]
 
-        texts_dict = {idx: Bite(cls="text") for idx, _ in enumerate(texts_bboxes)}
-        titles_dict = {idx: Bite(cls="title") for idx, _ in enumerate(titles_bboxes)}
+        texts_dict = {idx: Bite(cls="text", bbox=bbox) for idx, bbox in enumerate(texts_bboxes)}
+        titles_dict = {idx: Bite(cls="title", bbox=bbox) for idx, bbox in enumerate(titles_bboxes)}
         for line in layout.lines_iterator():
             line_bbox = polygon_to_bbox(line.polygon)
             best_text_idx = best_intersecting_bbox(line_bbox, texts_bboxes)
