@@ -167,6 +167,7 @@ def main():
         img = cv2.imread(path_img)
         if img is None:
             logging.warning(f"Image {image_filename} not found, skipping.")
+            continue
 
         drawer = ImageOverdrawer(img, args.overlay)
         result = draw_layout(drawer, root, args.draw_out_of_order)
