@@ -4,8 +4,6 @@ from collections import defaultdict
 from textbite.geometry import polygon_centroid, get_lines_polygon
 from pero_ocr.document_ocr.layout import RegionLayout
 
-import logging
-
 
 class UnsupportedLayoutError(Exception):
     pass
@@ -32,7 +30,6 @@ class PageXMLEnhancer:
                 assert r[1] is True, 'Unpure regions cannot occur at this point'
 
         title_regions_id = [layout.regions[r[0]].id for r in bite]
-        logging.debug(f'Found title regions: {title_regions_id}')
 
         reading_order = []
         for bite in coverage:
@@ -47,7 +44,6 @@ class PageXMLEnhancer:
 
         for region in out_xml.iter(f"{{{ns}}}TextRegion"):
             if region.get('id') in title_regions_id:
-                logging.debug(f"Setting {region.get('id')} as title")
                 region.attrib['type'] = 'heading'
 
         ET.indent(out_xml)
