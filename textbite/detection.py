@@ -128,12 +128,12 @@ class YoloBiter:
         for bg in geometry.bite_geometries:
             if bg.bite.cls != "title":
                 continue
-        
-            if bg.child:
-                y_dist = abs(bg.bite.bbox.ymax - bg.child.bite.bbox.ymin)
 
             found_text_successor = False
+            ptr = bg
             for successor in bg.children_iterator():
+                y_dist = abs(ptr.bite.bbox.ymax - successor.bite.bbox.ymin)
+                ptr = successor
                 if successor.bite.cls == "text" and y_dist < 0.1 * layout.page_size[0]:
                     found_text_successor = True
                     successor.bite.lines.extend(bg.bite.lines)
