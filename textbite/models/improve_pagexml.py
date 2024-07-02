@@ -1,7 +1,15 @@
+"""Script for the generation of final PAGE-XML files.
+
+Date -- 15.05.2024
+Author -- Martin Kostelnik, Karel Benes
+"""
+
+
+import numpy as np
 import lxml.etree as ET
 from collections import defaultdict
 
-from textbite.geometry import polygon_centroid, get_lines_polygon
+from textbite.geometry import polygon_to_bbox
 from pero_ocr.document_ocr.layout import RegionLayout
 
 
@@ -21,6 +29,7 @@ class PageXMLEnhancer:
         region_centers = [polygon_centroid(*zip(*r.polygon)) for r in layout.regions]
 
         assert len(set(sum((b.lines for b in bites), []))) == sum(len(b.lines) for b in bites), 'Bites have to be disjunct'
+        assert len(set(sum((r.lines for r in layout.regions), []))) == len([l for l in layout.lines_iterator()]), "Split layout regions have to be disjunct"
         assert set(sum((b.lines for b in bites), [])).issubset(all_lines_ids), 'Bites must only have lines from the layout'
 
         coverage = [self.get_covering_bites(bite.lines, layout_bites) for bite in bites]
@@ -28,8 +37,6 @@ class PageXMLEnhancer:
         for bite in coverage:
             for r in bite:
                 assert r[1] is True, 'Unpure regions cannot occur at this point'
-
-        title_regions_id = [layout.regions[r[0]].id for r in bite]
 
         reading_order = []
         for bite in coverage:
@@ -42,9 +49,18 @@ class PageXMLEnhancer:
         page_qname = ET.QName(ns, 'Page')
         out_xml.find(page_qname).insert(0, reading_order_root)
 
-        for region in out_xml.iter(f"{{{ns}}}TextRegion"):
-            if region.get('id') in title_regions_id:
-                region.attrib['type'] = 'heading'
+        ns = {"ns": out_xml.nsmap[None]}
+        regions = out_xml.findall(".//ns:TextRegion", ns)
+        for region in regions:
+            id = region.get("id")
+            if "_" not in id:
+                continue
+            id_cropped = int(id[id.find("_")+1:])
+            try:
+                cls = bites[id_cropped].cls
+            except IndexError:
+                continue
+            region.set("type", cls)
 
         ET.indent(out_xml)
         return ET.tostring(out_xml, pretty_print=True, encoding=str)
@@ -56,23 +72,23 @@ class PageXMLEnhancer:
             for line in region.lines:
                 for bite_id, bite in enumerate(bites):
                     if line.id in bite.lines:
-                        covering_bites[bite_id].append(line.id)
+                        covering_bites[bite_id].append(line)
                         break
                 else:
-                    covering_bites[-1].append(line.id)
+                    covering_bites[-1].append(line)
 
             #  regions covered by a single bite need no further attention
             if len(covering_bites) == 1:
                 new_regions.append(region)
             else:
-                for bite, lines in covering_bites.items():
-                    bite_lines = [line for line in region.lines if line.id in lines]
-                    polygon = get_lines_polygon(bite_lines)
-                    new_region = RegionLayout(f'{region.id}_{bite}', polygon)
-                    new_region.lines = bite_lines
+                for bite_id, lines in enumerate(covering_bites.values()):
+                    polygon = get_lines_polygon(lines)
+                    new_region = RegionLayout(f'{region.id}_{bite_id}', polygon)
+                    new_region.lines = lines
                     new_regions.append(new_region)
 
         layout.regions = new_regions
+
 
     def get_covering_bites(self, lines_to_cover, bites):
         lines_to_cover = set(lines_to_cover)
@@ -135,3 +151,36 @@ class PageXMLEnhancer:
             for region in layout.regions:
                 for line in region.lines:
                     line.id = f'{region.id}_{line.id}'
+
+
+# https://stackoverflow.com/a/66801704/9703830
+def polygon_area(xs, ys):
+    """https://en.wikipedia.org/wiki/Centroid#Of_a_polygon"""
+    # https://stackoverflow.com/a/30408825/7128154
+    return 0.5 * (np.dot(xs, np.roll(ys, 1)) - np.dot(ys, np.roll(xs, 1)))
+
+
+def polygon_centroid(xs, ys):
+    """https://en.wikipedia.org/wiki/Centroid#Of_a_polygon"""
+    xy = np.array([xs, ys])
+    c = np.dot(xy + np.roll(xy, 1, axis=1),
+               xs * np.roll(ys, 1) - np.roll(xs, 1) * ys
+               ) / (6 * polygon_area(xs, ys))
+    return c
+
+
+def get_lines_polygon(lines):
+    bboxes = [polygon_to_bbox(line.polygon) for line in lines]
+    min_x = min(bboxes, key=lambda x: x.xmin).xmin
+    min_y = min(bboxes, key=lambda x: x.ymin).ymin
+    max_x = max(bboxes, key=lambda x: x.xmax).xmax
+    max_y = max(bboxes, key=lambda x: x.ymax).ymax
+
+    polygon = np.array([
+        [min_x, min_y],
+        [max_x, min_y],
+        [max_x, max_y],
+        [min_x, max_y],
+    ])
+
+    return polygon

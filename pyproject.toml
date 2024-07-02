@@ -25,6 +25,7 @@ dependencies = [
     "shapely",
     "pero-ocr",
     "ultralytics",
+    "transformers",
 ]
 
 [tool.setuptools]
@@ -34,4 +35,4 @@ include-package-data = false
 "textbite" = "textbite"
 
 [project.scripts]
-textbite = "textbite.user_scripts.infer:main"
+textbite = "textbite.infer:main"
