@@ -1,15 +1,11 @@
 from __future__ import annotations
 
-from typing import Optional, List, Tuple, Dict
+from typing import Optional, List
 from collections import namedtuple
 from math import sqrt
 from functools import cached_property
 
 import numpy as np
-import torch
-
-from shapely.ops import nearest_points
-from shapely.geometry import Polygon
 
 from pero_ocr.document_ocr.layout import PageLayout, TextLine
 
@@ -95,83 +91,12 @@ def best_intersecting_bbox(target_bbox: AABB, candidate_bboxes: List[AABB]):
     return best_region
 
 
-def bbox_to_yolo(bbox: AABB, page_width, page_height) -> Tuple[float, float, float, float]:
-    dx, dy = bbox.xmax - bbox.xmin, bbox.ymax - bbox.ymin
-    x = (bbox.xmin + (dx / 2.0)) / page_width
-    y = (bbox.ymin + (dy / 2.0)) / page_height
-    width = dx / page_width
-    height = dy / page_height
-
-    return x, y, width, height
-
-
-class Ray:
-    def __init__(self, origin: Point, direction: Point):
-        self.origin = origin
-        self.direction = direction
-
-        length = sqrt(self.direction.x*self.direction.x + self.direction.y*self.direction.y)
-        x = self.direction.x / length
-        y = self.direction.y / length
-        self.direction = Point(x, y)
-
-    def intersects_bbox(self, bbox: AABB) -> Optional[float]:
-        if self.direction.x == 0 and (self.origin.x < bbox.xmin or self.origin.x > bbox.xmax):
-            return None
-
-        if self.direction.y == 0 and (self.origin.y < bbox.ymin or self.origin.y > bbox.ymax):
-            return None
-
-        tmin = -float('inf')
-        tmax = float('inf')
-
-        if self.direction.x != 0:
-            tx1 = (bbox.xmin - self.origin.x) / self.direction.x
-            tx2 = (bbox.xmax - self.origin.x) / self.direction.x
-
-            tmin = max(tmin, min(tx1, tx2))
-            tmax = min(tmax, max(tx1, tx2))
-
-        if self.direction.y != 0:
-            ty1 = (bbox.ymin - self.origin.y) / self.direction.y
-            ty2 = (bbox.ymax - self.origin.y) / self.direction.y
-
-            tmin = max(tmin, min(ty1, ty2))
-            tmax = min(tmax, max(ty1, ty2))
-
-        if tmin <= tmax and tmax >= 0:
-            return max(tmin, 0)
-        else:
-            return None
-
-
-def find_visible_entities(rays: List[Ray], entities: List[GeometryEntity]) -> List[GeometryEntity]:
-    visible_entities = []
-
-    for ray in rays:
-        best_dist = float("inf")
-        closest_entity = None
-        for entity in entities:
-            dist = ray.intersects_bbox(entity.bbox)
-            if dist:
-                if dist < best_dist:
-                    best_dist = dist
-                    closest_entity = entity
-
-        if closest_entity and closest_entity not in visible_entities:
-            visible_entities.append(closest_entity)
-
-    return visible_entities
-
-
 class GeometryEntity:
     def __init__(self, page_geometry: Optional[PageGeometry]=None):
         self.page_geometry = page_geometry # Reference to the geometry of the entire page
 
         self.parent: Optional[GeometryEntity] = None
         self.child: Optional[GeometryEntity] = None
-        self.neighbourhood: Optional[List[GeometryEntity]] = None
-        self.visible_entities: Optional[List[GeometryEntity]] = None
 
     @property
     def bbox(self) -> AABB:
@@ -256,9 +181,6 @@ class GeometryEntity:
             # Take the candidate, which is closest to me in Y axis <==> The one with the lowest Y values
             self.child = min(child_candidates, key=lambda x: x.center.y)
 
-    def set_visibility(self, entities: List[GeometryEntity]) -> None:
-        ...
-
 
 class RegionGeometry(GeometryEntity):
     def __init__(self, bbox: AABB, page_geometry: Optional[PageGeometry]):
@@ -269,33 +191,6 @@ class RegionGeometry(GeometryEntity):
     def bbox(self) -> AABB:
         assert self._bbox.xmax > self._bbox.xmin and self._bbox.ymax > self._bbox.ymin
         return self._bbox
-    
-    def set_visibility(self, entities: List[GeometryEntity]) -> None:
-        assert self.page_geometry is not None
-
-        self.visible_entities = []
-        other_entities = [entity for entity in entities if self is not entity]
-
-        if self.parent is not None:
-            self.visible_entities.append(self.parent)
-
-        if self.child is not None:
-            self.visible_entities.append(self.child)
-
-        # Create horizontal rays
-        horizontal_rays = []
-        horizontal_rays.append(Ray(Point(self.bbox.xmax, self.center.y), Point(1, 0.5)))
-        horizontal_rays.append(Ray(Point(self.bbox.xmax, self.center.y), Point(1, 0)))
-        horizontal_rays.append(Ray(Point(self.bbox.xmax, self.center.y), Point(1, -0.5)))
-
-        horizontal_visible_entities = find_visible_entities(horizontal_rays, other_entities)
-        self.visible_entities.extend(horizontal_visible_entities)
-        for ve in horizontal_visible_entities:
-            for relative in ve.lineage_iterator():
-                if relative not in self.visible_entities:
-                    self.visible_entities.append(relative)
-
-        self.visible_entities = list(set(self.visible_entities))
 
 
 class LineGeometry(GeometryEntity):
@@ -342,40 +237,3 @@ class PageGeometry:
             region.set_parent(self.regions, threshold=10)
             region.set_child(self.regions, threshold=10)
 
-    @property
-    def page_area(self):
-        return self.page_width * self.page_height
-
-    @property
-    def avg_line_width(self) -> float:
-        if not self.lines or len(self.lines) == 0:
-            raise ValueError("No lines exist in this PageGeometry.")
-        return sum(line.get_width() for line in self.lines) / len(self.lines)
-
-    @property
-    def avg_line_height(self) -> float:
-        if not self.lines or len(self.lines) == 0:
-            raise ValueError("No lines exist in this PageGeometry.")
-        return sum(line.get_height() for line in self.lines) / len(self.lines)
-    
-    @property
-    def line_heads(self) -> List[LineGeometry]:
-        return [line_geometry for line_geometry in self.lines if line_geometry.parent is None]
-    
-    @property
-    def avg_line_distance_y(self) -> float:
-        processed_pairs = []
-        distance_sum = 0.0
-
-        for line_geometry in self.lines:
-            if line_geometry.parent is not None:
-                if set([line_geometry, line_geometry.parent]) not in processed_pairs:
-                    distance_sum += bbox_dist_y(line_geometry.bbox, line_geometry.parent.bbox)
-                    processed_pairs.append(set([line_geometry, line_geometry.parent]))
-
-            if line_geometry.child is not None:
-                if set([line_geometry, line_geometry.child]) not in processed_pairs:
-                    distance_sum += bbox_dist_y(line_geometry.bbox, line_geometry.child.bbox)
-                    processed_pairs.append(set([line_geometry, line_geometry.child]))
-
-        return distance_sum / len(processed_pairs)

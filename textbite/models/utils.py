@@ -1,15 +1,4 @@
-"""Utilities
-
-Date -- 15.05.2024
-Author -- Martin Kostelnik
-"""
-
-
-
 from typing import List, Tuple, Set
-from time import perf_counter
-import pickle
-import logging
 from enum import Enum
 
 import torch
@@ -21,13 +10,6 @@ class ModelType(Enum):
     GCN = 1
     MLP = 2
     
-
-def edges_to_edge_indices(edges: List[Tuple[int, int]]) -> Tuple[List[int], List[int]]:
-    from_indices = [from_idx for from_idx, _ in edges]
-    to_indices = [to_idx for _, to_idx in edges]
-
-    return from_indices, to_indices
-
 
 def edge_indices_to_edges(from_indices: List[int], to_indices: List[int]) -> List[Tuple[int, int]]:
     assert len(from_indices) == len(to_indices)
@@ -94,28 +76,3 @@ class GraphNormalizer:
         for g in graphs:
             g.edge_attr = (g.edge_attr - self.edge_mu) / self.edge_std
             g.node_features = (g.node_features - self.node_mu) / self.node_std
-
-
-def load_graphs(
-    path_train: str,
-    path_val_book: str,
-    path_val_dict: str,
-    path_val_peri: str,
-) -> Tuple[List[Graph], List[Graph], List[Graph], List[Graph]]:
-    start = perf_counter()
-    with open(path_train, "rb") as f:
-        train_data = pickle.load(f)
-
-    with open(path_val_book, "rb") as f:
-        val_data_book = pickle.load(f)
-
-    with open(path_val_dict, "rb") as f:
-        val_data_dict = pickle.load(f)
-
-    with open(path_val_peri, "rb") as f:
-        val_data_peri = pickle.load(f)
-
-    end = perf_counter()
-    logging.info(f"Train graphs: {len(train_data)} | Val graphs book: {len(val_data_book)} | Val graphs dictionary: {len(val_data_dict)} | Val graphs periodical: {len(val_data_peri)} | Took: {(end-start):.3f} s")
-
-    return train_data, val_data_book, val_data_dict, val_data_peri

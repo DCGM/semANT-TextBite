@@ -21,7 +21,6 @@ class Graph:
         edge_attr,
     ):
         self.graph_id = id
-
         self.node_features = torch.stack(node_features)  # Shape (n_nodes, n_features)
         self.edge_index = torch.tensor([from_indices, to_indices], dtype=torch.int64)  # Shape (2, n_edges)
         self.edge_attr = torch.stack(edge_attr)  # Shape (n_edges, n_features)

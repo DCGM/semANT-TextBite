@@ -1,10 +1,3 @@
-"""Script for the generation of final PAGE-XML files.
-
-Date -- 15.05.2024
-Author -- Martin Kostelnik, Karel Benes
-"""
-
-
 import numpy as np
 import lxml.etree as ET
 from collections import defaultdict

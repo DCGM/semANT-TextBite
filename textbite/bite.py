@@ -1,10 +1,3 @@
-"""Bite definition
-
-Date -- 15.05.2024
-Author -- Martin Kostelnik
-"""
-
-
 from dataclasses import dataclass, field
 from typing import List
 import json

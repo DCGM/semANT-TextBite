@@ -2,6 +2,8 @@ import argparse
 import os
 import logging
 import pickle
+from collections import namedtuple
+import requests
 
 from numba.core.errors import NumbaDeprecationWarning
 import warnings
@@ -26,6 +28,18 @@ IMAGE_EXTENSIONS = [".jpg", ".jpeg"]
 CLASSIFICATION_THRESHOLD = 0.68
 CZERT_PATH = r"UWB-AIR/Czert-B-base-cased"
 
+ModelPart = namedtuple("ModelPart", "name url cached_path")
+CACHE_PATH = os.path.join(os.path.expanduser('~'), '.cache', 'textbite')
+YOLO_URL = r"https://nextcloud.fit.vutbr.cz/s/KwmAa6gHopze2iz/download/yolo-s-800.pt"
+GNN_URL = r"https://nextcloud.fit.vutbr.cz/s/gL9zyaHJjTMfS7B/download/gnn-joiner.pth"
+NORMALIZER_URL = r"https://nextcloud.fit.vutbr.cz/s/LsZ5nG5HGwjcBwW/download/gnn-normalizer.pkl"
+YOLO_CACHED_PATH = os.path.join(CACHE_PATH, "yolo-s-800.pt")
+GNN_CACHED_PATH = os.path.join(CACHE_PATH, "gnn-joiner.pth")
+NORMALIZER_CACHED_PATH = os.path.join(CACHE_PATH, "gnn-normalizer.pkl")
+YOLO_ = ModelPart("yolo", YOLO_URL, YOLO_CACHED_PATH)
+GNN = ModelPart("gnn", GNN_URL, GNN_CACHED_PATH)
+NORMALIZER = ModelPart("normalizer", NORMALIZER_URL, NORMALIZER_CACHED_PATH)
+
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
@@ -34,14 +48,51 @@ def parse_arguments():
     parser.add_argument("--xml", required=True, type=str, help="Path to a folder with xml data.")
     parser.add_argument("--img", required=True, type=str, help="Path to a folder with images data.")
     parser.add_argument("--alto", default=None, type=str, help="Path to a folder with alto data.")
-    parser.add_argument("--yolo", required=True, type=str, help="Path to the .pt file with weights of YOLO model.")
-    parser.add_argument("--gnn", required=True, type=str, help="Path to the .pt file with weights of Joiner model.")
-    parser.add_argument("--normalizer", required=True, type=str, help="Path to node normalizer.")
+    parser.add_argument("--yolo", default=None, type=str, help="Path to the .pt file with weights of YOLO model.")
+    parser.add_argument("--gnn", default=None, type=str, help="Path to the .pt file with weights of Joiner model.")
+    parser.add_argument("--normalizer", default=None, type=str, help="Path to node normalizer.")
     parser.add_argument("--czert", default=CZERT_PATH, type=str, help="Path to CZERT.")
     parser.add_argument("--json", action="store_true", help="Store the JSON output format")
     parser.add_argument("--save", required=True, type=str, help="Folder where to put output files.")
 
     return parser.parse_args()
+
+
+def download_model_part(model_part: ModelPart, force_download: bool=False):
+    if os.path.isfile(model_part.cached_path) and not force_download:
+        logging.info(f"Default {model_part.name} model already present")
+        return
+
+    logging.info(f'Downloading default {model_part.name} model...')
+    r = requests.get(model_part.url)
+    os.makedirs(CACHE_PATH, exist_ok=True)
+    with open(model_part.cached_path, 'wb') as f:
+        f.write(r.content)
+
+
+def create_models(args):
+    if args.yolo is None:
+        download_model_part(YOLO_)
+        yolo = YoloBiter(YOLO(YOLO_.cached_path))
+    else:
+        yolo = YoloBiter(YOLO(args.yolo))
+
+    if args.gnn is None:
+        download_model_part(GNN)
+        gnn = torch.load(GNN.cached_path)
+    else:
+        gnn = torch.load(args.gnn)
+
+    if args.normalizer is None:
+        download_model_part(NORMALIZER)
+        normalizer_path = NORMALIZER.cached_path
+    else:
+        normalizer_path = args.normalizer
+
+    with open(normalizer_path, "rb") as f:
+        normalizer = pickle.load(f)
+
+    return yolo, gnn, normalizer
 
 
 def main():
@@ -52,21 +103,16 @@ def main():
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    yolo = YoloBiter(YOLO(args.yolo))
+    yolo, gnn_checkpoint, normalizer = create_models(args)
 
     tokenizer = BertTokenizerFast.from_pretrained(args.czert)
     czert = BertModel.from_pretrained(args.czert)
     czert = czert.to(device)
 
     graph_provider = JoinerGraphProvider(tokenizer, czert, device)
-
-    gnn_checkpoint = torch.load(args.gnn)
     gnn = JoinerGraphModel.from_pretrained(gnn_checkpoint, device)
     gnn.eval()
     gnn = gnn.to(device)
-
-    with open(args.normalizer, "rb") as f:
-        normalizer: GraphNormalizer = pickle.load(f)
 
     xml_enhancer = PageXMLEnhancer()
 
