@@ -1,11 +1,4 @@
-"""Definition of a graph. Running this file is for debug only.
-
-Date -- 15.05.2024
-Author -- Martin Kostelnik
-"""
-
-
-from typing import Optional, List, Dict, Tuple
+from typing import Optional, List, Tuple
 
 import itertools
 import torch
@@ -59,22 +52,6 @@ class JoinerGraphProvider:
         edges = list(itertools.combinations(range(len(regions)), 2))
         edges = edges + [(to_idx, from_idx) for from_idx, to_idx in edges]
         return edges
-    
-    def create_geometric_edges(self, regions: List[AABB], pagexml: PageLayout) -> List[Tuple[int, int]]:
-        geometry = PageGeometry(regions=regions, pagexml=pagexml)
-        geometry.set_region_visibility()
-
-        edges = []
-
-        for from_idx, geometry_region in enumerate(geometry.regions):
-            for visible_region in geometry_region.visible_entities:
-                to_idx = geometry.regions.index(visible_region)
-                edges.append((from_idx, to_idx))
-                edges.append((to_idx, from_idx))
-
-        edges = [(f, t) for f, t in edges if f != t]
-
-        return list(set(edges))
     
     def create_edge_attr(
             self,

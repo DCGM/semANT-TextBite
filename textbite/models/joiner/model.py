@@ -1,13 +1,5 @@
 from __future__ import annotations
 
-
-"""Graph Neural Network model definition
-
-Date -- 15.05.2024
-Author -- Martin Kostelnik
-"""
-
-
 import torch
 from torch import nn
 from torch_geometric.nn import ResGatedGraphConv
@@ -32,7 +24,6 @@ class Block(torch.nn.Module):
         x = self.gcn(x, edge_index=edge_index, edge_attr=edge_attr)
         x = self.norm(x)
         x = self.nonlin(x)
-        # x = self.dropout(x)
 
         return x
 
