@@ -1,9 +1,5 @@
 from typing import List, Tuple, Optional
 
-from numba.core.errors import NumbaDeprecationWarning
-import warnings
-warnings.simplefilter("ignore", category=NumbaDeprecationWarning)
-
 import xml.etree.ElementTree as ET
 from pero_ocr.document_ocr.layout import PageLayout
 

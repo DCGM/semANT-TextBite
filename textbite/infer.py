@@ -5,10 +5,6 @@ import pickle
 from collections import namedtuple
 import requests
 
-from numba.core.errors import NumbaDeprecationWarning
-import warnings
-warnings.simplefilter("ignore", category=NumbaDeprecationWarning)
-
 from safe_gpu import safe_gpu
 from pero_ocr.document_ocr.layout import PageLayout
 from ultralytics import YOLO
