@@ -4,7 +4,7 @@ import itertools
 import torch
 from transformers import BertModel, BertTokenizerFast
 
-from pero_ocr.document_ocr.layout import PageLayout
+from pero_ocr.core.layout import PageLayout
 
 from textbite.bite import Bite
 from textbite.models.feature_extraction import TextFeaturesProvider, GeometryFeaturesProvider

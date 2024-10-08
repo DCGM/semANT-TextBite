@@ -26,6 +26,7 @@ dependencies = [
     "pero-ocr",
     "ultralytics",
     "transformers",
+    "torch_geometric",
 ]
 
 [tool.setuptools]

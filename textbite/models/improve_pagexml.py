@@ -3,7 +3,7 @@ import lxml.etree as ET
 from collections import defaultdict
 
 from textbite.geometry import polygon_to_bbox
-from pero_ocr.document_ocr.layout import RegionLayout
+from pero_ocr.core.layout import RegionLayout
 
 
 class UnsupportedLayoutError(Exception):
@@ -37,7 +37,7 @@ class PageXMLEnhancer:
 
         reading_order_root = self.get_reading_order_xml(reading_order, layout)
 
-        out_xml = ET.fromstring(layout.to_pagexml_string())
+        out_xml = ET.fromstring(layout.to_pagexml_string().encode("utf-8"))
         ns = out_xml.nsmap[None]
         page_qname = ET.QName(ns, 'Page')
         out_xml.find(page_qname).insert(0, reading_order_root)
