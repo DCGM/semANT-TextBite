@@ -1,7 +1,7 @@
 from typing import List, Tuple, Optional
 
 import xml.etree.ElementTree as ET
-from pero_ocr.document_ocr.layout import PageLayout
+from pero_ocr.core.layout import PageLayout
 
 from textbite.bite import Bite
 from textbite.geometry import AABB, polygon_to_bbox, bbox_intersection_over_area, best_intersecting_bbox

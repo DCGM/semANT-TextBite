@@ -7,7 +7,7 @@ from functools import cached_property
 
 import numpy as np
 
-from pero_ocr.document_ocr.layout import PageLayout, TextLine
+from pero_ocr.core.layout import PageLayout, TextLine
 
 
 Point = namedtuple("Point", "x y")

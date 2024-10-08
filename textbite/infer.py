@@ -6,7 +6,7 @@ from collections import namedtuple
 import requests
 
 from safe_gpu import safe_gpu
-from pero_ocr.document_ocr.layout import PageLayout
+from pero_ocr.core.layout import PageLayout
 from ultralytics import YOLO
 import torch
 from transformers import BertTokenizerFast, BertModel
