@@ -3,14 +3,15 @@ requires = [ "setuptools>=61" ]
 
 [project]
 name = "textbite"
-version = "0.1.0"
+version = "1.0.0"
 description = "Toolkit for extracting logical chunks from complex document pages."
 readme = "README.md"
-requires-python = ">=3.7"
+requires-python = ">=3.10"
 license = {file = "LICENSE"}
-keywords = ["Layout analysis"]
+keywords = ["Layout analysis", "text segmentation", "machine learning", "language models", "graph neural networks", "object detection", "YOLOv8"]
 
 authors = [
+  {email = "martinkostelnik0@gmail.com", name = "Martin Kostelník"},
   {email = "ibenes@fit.vutbr.cz", name = "Karel Beneš"},
 ]
 
