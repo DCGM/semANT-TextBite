@@ -5,7 +5,6 @@ import pickle
 from collections import namedtuple
 import requests
 
-from safe_gpu import safe_gpu
 from pero_ocr.core.layout import PageLayout
 from ultralytics import YOLO
 import torch
@@ -50,6 +49,7 @@ def parse_arguments():
     parser.add_argument("--czert", default=CZERT_PATH, type=str, help="Path to CZERT.")
     parser.add_argument("--json", action="store_true", help="Store the JSON output format")
     parser.add_argument("--save", required=True, type=str, help="Folder where to put output files.")
+    parser.add_argument("--use-safe-gpu", action="store_true", help="Use safe_gpu package for selecting available GPU.")
 
     return parser.parse_args()
 
@@ -95,9 +95,14 @@ def main():
     args = parse_arguments()
     logging.basicConfig(level=args.logging_level)
     logging.getLogger("ultralytics").setLevel(logging.WARNING)
-    safe_gpu.claim_gpus()
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if torch.cuda.is_available():
+        if args.use_safe_gpu:
+            from safe_gpu import safe_gpu
+            safe_gpu.claim_gpus()
+        device = torch.device("cuda")
+    else:
+        device = torch.device("cpu")
 
     yolo, gnn_checkpoint, normalizer = create_models(args)
 
