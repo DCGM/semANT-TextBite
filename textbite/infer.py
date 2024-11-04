@@ -40,16 +40,21 @@ def parse_arguments():
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--logging-level", default='WARNING', choices=['ERROR', 'WARNING', 'INFO', 'DEBUG'])
+    parser.add_argument("--use-safe-gpu", action="store_true", help="Use safe_gpu package for selecting available GPU.")
+
     parser.add_argument("--xml", required=True, type=str, help="Path to a folder with xml data.")
     parser.add_argument("--img", required=True, type=str, help="Path to a folder with images data.")
     parser.add_argument("--alto", default=None, type=str, help="Path to a folder with alto data.")
+
     parser.add_argument("--yolo", default=None, type=str, help="Path to the .pt file with weights of YOLO model.")
     parser.add_argument("--gnn", default=None, type=str, help="Path to the .pt file with weights of Joiner model.")
     parser.add_argument("--normalizer", default=None, type=str, help="Path to node normalizer.")
     parser.add_argument("--czert", default=CZERT_PATH, type=str, help="Path to CZERT.")
+
     parser.add_argument("--json", action="store_true", help="Store the JSON output format")
+    parser.add_argument("--save-yolo-output", action="store_true", help="Store the bites as obtained from YOLO as well.")
     parser.add_argument("--save", required=True, type=str, help="Folder where to put output files.")
-    parser.add_argument("--use-safe-gpu", action="store_true", help="Use safe_gpu package for selecting available GPU.")
+    
 
     return parser.parse_args()
 
@@ -125,12 +130,14 @@ def main():
         xml_filename = img_filename.replace(img_extension, ".xml")
         base_filename = xml_filename.replace(".xml", "")
         json_filename = xml_filename.replace(".xml", ".json")
+        yolo_filename = xml_filename.replace(".xml", ".txt")
 
         img_path = os.path.join(args.img, img_filename)
         xml_path = os.path.join(args.xml, xml_filename)
         alto_path = os.path.join(args.alto, xml_filename) if args.alto is not None else None
         json_save_path = os.path.join(args.save, json_filename)
         xml_save_path = os.path.join(args.save, xml_filename)
+        yolo_save_path = os.path.join(args.save, yolo_filename)
 
         try:
             pagexml = PageLayout(file=xml_path)
@@ -141,6 +148,13 @@ def main():
         logging.info(f"({i+1}/{len(img_filenames)}) | Processing: {xml_path}")
 
         yolo_bites = yolo.produce_bites(img_path, pagexml, alto_path)
+
+        if args.save_yolo_output:
+            yolo.save_yolo_output(
+                bites=yolo_bites,
+                page_size=pagexml.page_size,
+                path=yolo_save_path,
+            )
 
         try:
             bites = join_bites(

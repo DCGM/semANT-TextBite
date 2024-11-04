@@ -4,7 +4,7 @@ import xml.etree.ElementTree as ET
 from pero_ocr.core.layout import PageLayout
 
 from textbite.bite import Bite
-from textbite.geometry import AABB, polygon_to_bbox, bbox_intersection_over_area, best_intersecting_bbox
+from textbite.geometry import AABB, polygon_to_bbox, bbox_intersection_over_area, best_intersecting_bbox, bbox_center
 
 
 class YoloBiter:
@@ -119,3 +119,25 @@ class YoloBiter:
         titles = [bite for bite in titles_dict.values() if bite.lines]
 
         return texts + titles
+
+    def save_yolo_output(
+        self,
+        bites: list[Bite],
+        page_size: tuple[int, int],
+        path: str,
+    ) -> None:
+        h, w = page_size
+        out_str = ""
+
+        for bite in bites:
+            center = bbox_center(bite.bbox)
+            cls = 0 if bite.cls == "title" else 1
+            center_x = center.x / w
+            center_y = center.y / h
+            width = (bite.bbox.xmax - bite.bbox.xmin) / w
+            height = (bite.bbox.ymax - bite.bbox.ymin) / h 
+
+            out_str += f"{cls} {center_x} {center_y} {width} {height}\n"
+
+        with open(path, "w") as f:
+            print(out_str, file=f, end="")
